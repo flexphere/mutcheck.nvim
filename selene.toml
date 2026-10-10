@@ -1,0 +1,2 @@
+# Neovim の Lua（LuaJIT）として解析する。vim のグローバルは vim.yml で定義する
+std = "vim"

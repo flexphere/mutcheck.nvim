@@ -1,0 +1,28 @@
+[tools]
+neovim = "0.12.6"
+stylua = "2.5.2"
+"aqua:Kampfkarren/selene" = "0.32.0"
+
+[tasks.format]
+description = "stylua で整形する"
+run = "stylua lua tests"
+
+[tasks.lint]
+description = "整形漏れ（stylua）と静的解析（selene）を確認する"
+run = [
+  "stylua --check lua tests",
+  "selene lua tests",
+]
+
+[tasks.test]
+description = "テストを実行する（tests/*_test.lua を headless の Neovim で 1 つずつ実行する）"
+run = '''
+for f in tests/*_test.lua; do
+  echo "== $f"
+  nvim --headless -u NONE -l "$f" || exit 1
+done
+'''
+
+[tasks.check]
+description = "lint と test"
+depends = ["lint", "test"]
