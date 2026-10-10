@@ -150,4 +150,13 @@ mise run test      # tests/*_test.lua を headless の Neovim で実行する
 mise run check     # lint と test
 ```
 
+GitHub Actions では push と pull request のたびに `mise run check` を実行します（`.github/workflows/ci.yml`）。
+workflow が使う action は [gh-actions-lock](https://github.com/github/gh-actions-lock) でコミットに固定しています（`.github/workflows/actions.lock`）。`uses` を追加・変更したときは lockfile を更新します。
+
+```sh
+gh extension install github/gh-actions-lock
+gh actions-lock            # workflow を走査して lockfile を更新する
+gh actions-lock --relock   # 固定しているバージョンを上流の最新コミットに上げる
+```
+
 コマンドを足すときは `lua/mutcheck/commands.lua` の登録簿に足します。`:MutcheckXxx` の登録とコマンドパレットの両方に出ます。
