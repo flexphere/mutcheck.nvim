@@ -160,3 +160,7 @@ gh actions-lock --relock   # 固定しているバージョンを上流の最新
 ```
 
 コマンドを足すときは `lua/mutcheck/commands.lua` の登録簿に足します。`:MutcheckXxx` の登録とコマンドパレットの両方に出ます。
+
+## ライセンス
+
+MIT（`LICENSE`）
