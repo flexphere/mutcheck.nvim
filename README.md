@@ -15,7 +15,7 @@ c.ReadWriteTransaction(ctx, func(...) error {          muts: ~ commit 5·ps · d
 ## 必要なもの
 
 - Neovim 0.10 以上（`vim.system` を使います）
-- `mutcheck`（`go install github.com/flexphere/mutcheck@latest`）。JSON の `callers` / `func_full` を使うので、それらを出す版が必要です
+- `mutcheck`（`go install github.com/flexphere/mutcheck@latest`）
 
 ## 設定
 
