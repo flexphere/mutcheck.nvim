@@ -16,6 +16,9 @@ c.ReadWriteTransaction(ctx, func(...) error {          muts: ~ commit 5·ps · d
 
 - Neovim 0.10 以上（`vim.system` を使います）
 - `mutcheck`（`go install github.com/flexphere/mutcheck@latest`）
+- `go`（mutcheck が `go env` / `go list` を実行します）
+
+`:checkhealth mutcheck` で、mutcheck と go が見つかるか、`projects` の `dir` と `schema` が読めるかを確かめられます。
 
 ## 設定
 

@@ -29,6 +29,7 @@ local config = {
 local ns = vim.api.nvim_create_namespace("mutcheck")
 local enabled = true
 local projects = {}
+local configured = false
 
 local function realpath(path)
   return vim.uv.fs_realpath(path) or vim.fs.normalize(path)
@@ -316,7 +317,13 @@ function M.context()
   return { project = p, has_hint = enabled and items ~= nil and #items > 0 }
 end
 
+-- health は :checkhealth mutcheck で確かめる設定。setup を呼ぶ前なら configured は false
+function M.health()
+  return { configured = configured, config = config, projects = projects }
+end
+
 function M.setup(opts)
+  configured = true
   config = vim.tbl_deep_extend("force", config, opts or {})
   projects = {}
   for _, p in ipairs(config.projects) do
