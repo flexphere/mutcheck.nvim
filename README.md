@@ -1,6 +1,6 @@
 # mutcheck.nvim
 
-[mutcheck](https://github.com/flexphere/mutcheck) の解析結果を、Go のコードに virtual text で表示する Neovim プラグインです（PoC）。
+[mutcheck](https://github.com/flexphere/mutcheck) の解析結果を、Go のコードに virtual text で表示する Neovim プラグインです。
 Spanner の ReadWriteTransaction ごとの mutation 数を、トランザクション境界、トランザクション内の呼び出し行、トランザクションを始める関数の呼び出し元の行末に出します。
 
 ```go
