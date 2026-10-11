@@ -1,2 +1,5 @@
 # グローバルの gitignore で除外していても、開発に使うツールのバージョンを読むので管理する
 !mise.toml
+
+# lazy.nvim などが :helptags で作る
+/doc/tags

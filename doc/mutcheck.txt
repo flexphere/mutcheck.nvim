@@ -1,0 +1,193 @@
+*mutcheck.txt*  Spanner の mutation 数を virtual text で表示する
+
+==============================================================================
+目次                                                       *mutcheck-contents*
+
+  1. 概要 ............................................... |mutcheck-intro|
+  2. 必要なもの ................................... |mutcheck-requirements|
+  3. 設定 .............................................. |mutcheck-config|
+  4. 更新のタイミング ................................. |mutcheck-update|
+  5. 表示 ............................................. |mutcheck-display|
+  6. コマンド ........................................ |mutcheck-commands|
+  7. ハイライト ...................................... |mutcheck-highlight|
+  8. 確認 ............................................... |mutcheck-health|
+
+==============================================================================
+1. 概要                                                *mutcheck* *mutcheck-intro*
+
+mutcheck (https://github.com/flexphere/mutcheck) の解析結果を、Go のコードに
+virtual text で表示する。Spanner の ReadWriteTransaction ごとの mutation 数を、
+トランザクション境界、トランザクション内の呼び出し行、トランザクションを始める
+関数の呼び出し元の行末に出す。
+>go
+    c.ReadWriteTransaction(ctx, func(...) error {   muts: ~ commit 5·ps · dynamic
+        for _, p := range ps {
+            muts = append(muts, p.Insert(ctx))      muts: ~ +5
+        }
+        return tx.BufferWrite(muts)                 muts: ~ +5·ps
+    })
+<
+==============================================================================
+2. 必要なもの                                           *mutcheck-requirements*
+
+- Neovim 0.10 以上（|vim.system()| を使う）
+- mutcheck: `go install github.com/flexphere/mutcheck@latest`
+- go（mutcheck が `go env` / `go list` を実行する）
+
+==============================================================================
+3. 設定                                     *mutcheck-config* *mutcheck.setup()*
+
+lazy.nvim では `opts` に、それ以外では `require("mutcheck").setup()` に渡す。
+>lua
+    require("mutcheck").setup({
+      projects = {
+        {
+          -- 解析する Go モジュールのディレクトリ
+          dir = "~/src/app",
+          -- schema.sql のパス。DB が複数あれば table で渡す
+          schema = "~/src/app/db/schema.sql",
+          -- mutcheck に渡す追加の引数（任意）
+          args = {},
+        },
+      },
+    })
+<
+                                                       *mutcheck-config-projects*
+projects ~
+    解析するモジュールの一覧。`dir` 以下の `*.go` だけが対象になる。
+    `dir` と `schema` の `~` は展開する。
+
+                                                            *mutcheck-config-cmd*
+cmd ~
+    mutcheck の実行ファイル。既定: `"mutcheck"`
+
+                                                     *mutcheck-config-max_values*
+max_values ~
+    複数のトランザクションから呼ばれる行で、並べる小計の数。既定: `2`
+
+                                                         *mutcheck-config-prefix*
+prefix ~
+    virtual text の先頭に付ける文字列。既定: `"muts: "`
+
+                                                         *mutcheck-config-picker*
+picker ~
+    |:MutcheckCommandPalette| の picker。`"telescope"` / `"snacks"` /
+    `"select"`（|vim.ui.select()|）。既定: `"select"`
+    指定したプラグインがなければ |vim.ui.select()| で開く。
+
+                                                         *mutcheck-config-glyphs*
+glyphs ~
+    判定ごとに値の先頭に付ける glyph。空文字なら付けない。
+    既定: `{ fixed = "✓", dynamic = "~", check = "!", over = "✗" }`
+
+==============================================================================
+4. 更新のタイミング                                         *mutcheck-update*
+
+- 対象のファイルを初めて開いたときに、一度解析する。前回の解析結果を
+  `stdpath("cache")/mutcheck/` に残しているので、解析が終わるまではそれを出す。
+- 保存（|BufWritePost|）のたびに解析し直す。中身を変えずに `:w` しただけの
+  ときは解析しない。nvim の外でコードが変わったときは |:MutcheckRun| を使う。
+- 結果が出るまでは前回の結果を |hl-MutcheckStale| で出し、結果が出たら元の色
+  に戻す。
+- 解析中に保存した場合は、今の解析を最後まで続け、そのあと最新の内容でもう
+  一度だけ解析する。
+- 保存前の編集内容は解析しない。
+- 前回の解析から型エラーのあるパッケージが増えた場合は、mutation 数が少なく
+  出るので前回の結果を残し、警告を出す。もとから型エラーのあるパッケージだけ
+  であれば、新しい結果を出す。
+
+==============================================================================
+5. 表示                                                    *mutcheck-display*
+
+どの値にも、そのトランザクションの判定（`fixed` / `dynamic` / `check` /
+`over`）の glyph を先頭に付ける。1 行に複数のトランザクションが関わるときは、
+いちばん重い判定（`over` > `check` > `dynamic` > `fixed`）の glyph にする。
+
+トランザクション境界の行 ~
+>text
+    muts: ~ commit 6 + 9·orderIDs · dynamic
+    muts: ~ commit 0 + DML 1 文 · dynamic
+<
+    commit 1 回分の mutation 数の式と判定を出す。DML を実行していれば、
+    その文の数を添える。
+
+トランザクション内の呼び出し行 ~
+>text
+    muts: ~ +9·userIDs
+    muts: ~ DML 1·rows(Child←Parent) + 2·rows(Parent)
+    muts: ~ +5 | +9·n | 他 1 通り（3 tx）
+<
+    その呼び出し 1 回分の mutation 数を `+` 付きで出す。ループの中の呼び出し
+    は 1 回分の値。DML の文の中の呼び出しは `DML` を付ける。複数のトランザク
+    ションから呼ばれる行には、異なる値を |mutcheck-config-max_values| 個まで
+    並べ、トランザクションの数を添える。
+
+トランザクションを始める関数の呼び出し元 ~
+>text
+    muts: ~ tx 9·targets
+    muts: ~ tx×2 5 | 9·n
+<
+    中でトランザクションを始める関数を呼んでいる行に、そのトランザクションの
+    commit 1 回分の式を `tx` 付きで出す。直接の呼び出し元だけ（1 段）。
+    interface 経由の呼び出しは、メソッド名が同じで実装しうるものを拾うので、
+    実際には別の実装が呼ばれる行にも出ることがある。
+
+==============================================================================
+6. コマンド                                               *mutcheck-commands*
+
+                                                     *:MutcheckCommandPalette*
+:MutcheckCommandPalette
+    今使えるコマンドの一覧を出し、選んで実行する。コマンドにキーを割り当てて
+    いれば、そのキーも出す（`<Cmd>MutcheckTree<CR>` のような rhs のマッピング
+    だけ）。
+
+                                                                *:MutcheckRun*
+:MutcheckRun
+    今のバッファのプロジェクトを解析し直す。`git checkout` や nvim の外での
+    編集、schema.sql の変更など、保存を挟まずにコードが変わったときに使う。
+    表示を消していた場合は、表示も戻す。
+
+                                                               *:MutcheckTree*
+:MutcheckTree
+    今の行の hint のもとになったトランザクションの内訳を floating window に
+    出す。mutcheck を `-v -func` で実行したときと同じ出力。
+
+                                                             *:MutcheckTables*
+:MutcheckTables [{tables}]
+    `-tables` の出力（テーブルごとの単価）を floating window に出す。
+    {tables} を省くと `all`。
+
+                                                             *:MutcheckToggle*
+:MutcheckToggle
+    表示を切り替える。消している間は、保存しても解析しない。戻すときは、
+    ファイルを開いているプロジェクトを解析し直し、結果が出てから表示する。
+
+floating window は `q` か `<Esc>` で閉じる。
+
+==============================================================================
+7. ハイライト                                            *mutcheck-highlight*
+
+                                                             *hl-MutcheckHint*
+MutcheckHint            hint の色。件数次第・要確認はこの色になる。
+                        既定: `Number`
+                                        *hl-MutcheckDynamic* *hl-MutcheckCheck*
+MutcheckDynamic         判定ごとに色を分けたいときに上書きする。
+MutcheckCheck           既定: |hl-MutcheckHint|
+                                                            *hl-MutcheckFixed*
+MutcheckFixed           固定。既定: `DiagnosticOk`
+                                                             *hl-MutcheckOver*
+MutcheckOver            超過。既定: `DiagnosticError`
+                                                            *hl-MutcheckStale*
+MutcheckStale           解析中に表示している前回の結果。既定: `Comment`
+
+==============================================================================
+8. 確認                                                     *mutcheck-health*
+
+`:checkhealth mutcheck` で次を確かめる。
+
+- mutcheck の実行ファイルがあるか、そのバージョン
+- go があるか
+- |mutcheck-config-picker| に指定したプラグインがあるか
+- projects の `dir` が Go モジュールの中にあるか、`schema` が読めるか
+
+ vim:tw=78:ts=8:ft=help:norl:
